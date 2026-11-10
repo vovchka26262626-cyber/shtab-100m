@@ -14,10 +14,14 @@
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <style>
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
-  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; -webkit-tap-highlight-color: transparent; }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
   ::-webkit-scrollbar-thumb:hover { background: #334155; }
+  /* Предотвращаем зум на iOS при клике на инпуты */
+  input[type="text"], input[type="number"], input[type="date"], input[type="month"], select, textarea {
+    font-size: 16px !important; 
+  }
 </style>
 </head>
 <body class="bg-slate-950">
@@ -72,12 +76,10 @@ const HABITS_DEF = [
   ]},
 ];
 
-// ============ CONSTANTS ============
 const DIRECTIONS = ['Туризм', 'Металлоизделия', 'Здоровье', 'Финансы', 'Развитие'];
 const STATUSES = ['Бэклог', 'В работе', 'Готово'];
 const PRIORITIES = ['Высокий', 'Средний', 'Низкий'];
 
-// ============ HELPERS ============
 const pad = n => String(n).padStart(2, '0');
 const todayISO = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; };
 const monthISO = () => todayISO().slice(0, 7);
@@ -98,7 +100,6 @@ function useStoredState(key, initial) {
   return [val, setVal];
 }
 
-// ============ WEEK / HABIT HELPERS ============
 function getWeekNumber(startDate) {
   const start = new Date((startDate || todayISO()) + 'T00:00:00');
   const now = new Date(); now.setHours(0,0,0,0);
@@ -109,7 +110,7 @@ function daysIntoWeek(startDate) {
   const start = new Date((startDate || todayISO()) + 'T00:00:00');
   const now = new Date(); now.setHours(0,0,0,0);
   const d = Math.floor((now - start) / (24 * 60 * 60 * 1000));
-  return ((d % 7) + 7) % 7 + 1; // 1..7
+  return ((d % 7) + 7) % 7 + 1;
 }
 function getCurrentHabits(weekNum) {
   return HABITS_DEF.map(h => {
@@ -129,7 +130,7 @@ function isHabitDone(entry, key) {
   if (!entry) return false;
   const h = entry.habits?.[key];
   if (h) return !!h.done;
-  return !!entry[key]; // legacy
+  return !!entry[key];
 }
 function isComplete(entry) { return HABITS_DEF.every(h => isHabitDone(entry, h.key)); }
 
@@ -147,8 +148,8 @@ function computeStreak(logs) {
 
 // ============ UI PRIMITIVES ============
 const Card = ({ title, children, className = '', action }) => (
-  <div className={`bg-slate-900 border border-slate-800 rounded-xl p-5 ${className}`}>
-    {title && (<div className="flex items-center justify-between mb-3">
+  <div className={`bg-slate-900 border border-slate-800 rounded-xl p-4 md:p-5 ${className}`}>
+    {title && (<div className="flex flex-wrap items-center justify-between gap-2 mb-3">
       <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-widest">{title}</h3>
       {action}
     </div>)}
@@ -159,8 +160,8 @@ const Btn = ({ children, onClick, variant = 'primary', className = '', type = 'b
   const styles = { primary: 'bg-blue-600 hover:bg-blue-500 text-white', ghost: 'bg-slate-800 hover:bg-slate-700 text-slate-200', danger: 'bg-red-600/20 hover:bg-red-600/40 text-red-400' };
   return <button type={type} onClick={onClick} disabled={disabled} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition disabled:opacity-40 ${styles[variant]} ${className}`}>{children}</button>;
 };
-const Field = ({ label, children }) => (<label className="block"><span className="block text-[11px] text-slate-400 mb-1 uppercase tracking-wider">{label}</span>{children}</label>);
-const inputCls = "w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500";
+const Field = ({ label, children }) => (<label className="block w-full"><span className="block text-[11px] text-slate-400 mb-1 uppercase tracking-wider">{label}</span>{children}</label>);
+const inputCls = "w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500 appearance-none";
 const Input = ({ label, ...p }) => <Field label={label}><input {...p} className={inputCls} /></Field>;
 const Select = ({ label, children, ...p }) => <Field label={label}><select {...p} className={inputCls}>{children}</select></Field>;
 const Textarea = ({ label, ...p }) => <Field label={label}><textarea {...p} className={inputCls} /></Field>;
@@ -263,8 +264,8 @@ function generateMentorMessage({ daily, currentHabits }) {
   return lines.join('\n');
 }
 
-// ============ SIDEBAR ============
-function Sidebar({ page, setPage, streak, weekNum }) {
+// ============ SIDEBAR (MOBILE READY) ============
+function Sidebar({ page, setPage, streak, weekNum, isOpen, setIsOpen }) {
   const items = [
     { id: 'dashboard', label: 'Дашборд', icon: '▦' },
     { id: 'daily', label: 'Ежедневник', icon: '☑' },
@@ -275,29 +276,45 @@ function Sidebar({ page, setPage, streak, weekNum }) {
     { id: 'agents', label: 'ИИ-Агенты', icon: '◆' },
     { id: 'automations', label: 'Автоматизации', icon: '⚙' },
   ];
+
+  const handleNav = (id) => { setPage(id); setIsOpen(false); };
+
   return (
-    <aside className="w-64 bg-slate-900/60 border-r border-slate-800 p-4 flex flex-col shrink-0 h-screen sticky top-0">
-      <div className="mb-8 px-3">
-        <div className="text-[11px] text-blue-400 font-semibold tracking-[0.2em]">ШТАБ</div>
-        <div className="text-2xl font-bold tracking-tight">100 млн</div>
-        <div className="mt-3 text-xs text-slate-500 flex items-center justify-between">
-          <span>🔥 стрик: <span className="text-slate-200 font-semibold">{streak}</span></span>
-          <span className="px-2 py-0.5 rounded bg-blue-600/20 text-blue-400 font-mono">W{weekNum}</span>
-        </div>
-      </div>
-      <nav className="space-y-1 flex-1">
-        {items.map(it => (
-          <button key={it.id} onClick={() => setPage(it.id)}
-            className={`w-full text-left px-3 py-2 rounded-lg flex items-center gap-3 transition text-sm ${page === it.id ? 'bg-blue-600 text-white font-medium' : 'text-slate-300 hover:bg-slate-800'}`}>
-            <span className="w-5 text-center opacity-80 text-base">{it.icon}</span>
-            <span>{it.label}</span>
+    <>
+      {/* Затемнение фона при открытом меню на мобильном */}
+      {isOpen && (
+        <div className="fixed inset-0 bg-black/60 z-40 md:hidden backdrop-blur-sm" onClick={() => setIsOpen(false)} />
+      )}
+      
+      <aside className={`fixed md:sticky top-0 left-0 z-50 w-64 bg-slate-900 border-r border-slate-800 p-4 flex flex-col h-[100dvh] transform transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+        <div className="mb-8 px-3 flex justify-between items-start">
+          <div>
+            <div className="text-[11px] text-blue-400 font-semibold tracking-[0.2em]">ШТАБ</div>
+            <div className="text-2xl font-bold tracking-tight">100 млн</div>
+            <div className="mt-3 text-xs text-slate-500 flex items-center justify-between">
+              <span>🔥 стрик: <span className="text-slate-200 font-semibold">{streak}</span></span>
+              <span className="px-2 py-0.5 rounded bg-blue-600/20 text-blue-400 font-mono">W{weekNum}</span>
+            </div>
+          </div>
+          {/* Кнопка закрытия на мобильном */}
+          <button className="md:hidden text-slate-400 hover:text-white" onClick={() => setIsOpen(false)}>
+            ✕
           </button>
-        ))}
-      </nav>
-      <div className="text-[11px] text-slate-600 px-3 pt-4 border-t border-slate-800 leading-relaxed">
-        Капитал: 100 млн ₽<br />Поток: 500 тыс./мес<br />Свобода: 90 дней
-      </div>
-    </aside>
+        </div>
+        <nav className="space-y-1 flex-1 overflow-y-auto">
+          {items.map(it => (
+            <button key={it.id} onClick={() => handleNav(it.id)}
+              className={`w-full text-left px-3 py-3 md:py-2 rounded-lg flex items-center gap-3 transition text-sm ${page === it.id ? 'bg-blue-600 text-white font-medium' : 'text-slate-300 hover:bg-slate-800'}`}>
+              <span className="w-5 text-center opacity-80 text-base">{it.icon}</span>
+              <span>{it.label}</span>
+            </button>
+          ))}
+        </nav>
+        <div className="text-[11px] text-slate-600 px-3 pt-4 border-t border-slate-800 leading-relaxed mt-auto">
+          Капитал: 100 млн ₽<br />Поток: 500 тыс./мес<br />Свобода: 90 дней
+        </div>
+      </aside>
+    </>
   );
 }
 
@@ -324,6 +341,7 @@ function Dashboard({ daily, health, finance, tasks, agentNotes, settings, streak
         <p className="text-sm text-slate-500 mt-1">Неделя {weekNum} · начато {fmtDate(settings.startDate)}</p>
       </div>
 
+      {/* Сетка карточек: 1 колонка на мобильных, 3 на десктопе */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card title="Стрик привычек" action={<span className="text-xs text-slate-500">W{weekNum}</span>}>
           <div className="flex items-baseline gap-3">
@@ -339,7 +357,7 @@ function Dashboard({ daily, health, finance, tasks, agentNotes, settings, streak
         </Card>
 
         <Card title="Чистый капитал">
-          <div className="text-3xl font-bold">{fmtMoney(netCapital)}</div>
+          <div className="text-2xl md:text-3xl font-bold break-words">{fmtMoney(netCapital)}</div>
           <div className="text-xs text-slate-500 mt-1">Цель: 100 000 000 ₽</div>
           <div className="mt-3 h-2 bg-slate-800 rounded-full overflow-hidden">
             <div className="h-full bg-gradient-to-r from-blue-600 to-blue-400" style={{ width: `${Math.min(100, (netCapital/100000000)*100)}%` }} />
@@ -348,7 +366,7 @@ function Dashboard({ daily, health, finance, tasks, agentNotes, settings, streak
         </Card>
 
         <Card title="Прибыль / цель года">
-          <div className="text-3xl font-bold">{fmtMoney(monthProfit)}</div>
+          <div className="text-2xl md:text-3xl font-bold break-words">{fmtMoney(monthProfit)}</div>
           <div className="text-xs text-slate-500 mt-1">этот месяц · цель {fmtMoney(monthTarget)}</div>
           <div className="mt-3 h-2 bg-slate-800 rounded-full overflow-hidden">
             <div className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400" style={{ width: `${monthProgress}%` }} />
@@ -358,12 +376,12 @@ function Dashboard({ daily, health, finance, tasks, agentNotes, settings, streak
       </div>
 
       <Card title="Прогрессия привычек — неделя" action={<span className="text-xs text-slate-500">{daysIntoWeek(settings.startDate)}/7</span>}>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
           {currentHabits.map(h => (
-            <div key={h.key} className="flex items-center gap-2 text-sm bg-slate-800/40 rounded-lg p-2">
+            <div key={h.key} className="flex flex-wrap items-center gap-2 text-sm bg-slate-800/40 rounded-lg p-3">
               <span className="text-slate-500 w-24 shrink-0 text-xs uppercase tracking-wider">{h.name}</span>
               <span className="text-slate-200 flex-1">{h.label}</span>
-              {!h.maxed && <span className="text-[10px] text-slate-500">→ W{weekNum+1}: {h.nextLabel}</span>}
+              {!h.maxed && <span className="text-[10px] text-slate-500 w-full md:w-auto mt-1 md:mt-0">→ W{weekNum+1}: {h.nextLabel}</span>}
               {h.maxed && <span className="text-[10px] text-emerald-400">max</span>}
             </div>
           ))}
@@ -430,10 +448,10 @@ function DailyPage({ daily, setDaily, streak, weekNum, currentHabits, settings }
 
   return (
     <div className="space-y-6 max-w-4xl">
-      <div className="flex items-end justify-between">
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Ежедневник</h1>
-          <p className="text-sm text-slate-500 mt-1">Неделя {weekNum} · {daysIntoWeek(settings.startDate)}/7 · прогрессия включена</p>
+          <p className="text-sm text-slate-500 mt-1">Неделя {weekNum} · {daysIntoWeek(settings.startDate)}/7</p>
         </div>
         <div className="text-right">
           <div className="text-xs text-slate-500">Стрик</div>
@@ -442,20 +460,20 @@ function DailyPage({ daily, setDaily, streak, weekNum, currentHabits, settings }
       </div>
 
       <Card>
-        <div className="flex items-center justify-between mb-4">
-          <Input type="date" value={date} onChange={e => setDate(e.target.value)} />
-          <div className="text-sm text-slate-400">{completed}/{currentHabits.length} выполнено</div>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+          <div className="w-full sm:w-48"><Input type="date" value={date} onChange={e => setDate(e.target.value)} /></div>
+          <div className="text-sm text-slate-400 text-center sm:text-right">{completed}/{currentHabits.length} выполнено</div>
         </div>
 
         <div className="space-y-2">
           {currentHabits.map(h => {
             const done = isHabitDone(entry, h.key);
             return (
-              <label key={h.key} className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition border ${done ? 'bg-blue-600/10 border-blue-600/40' : 'bg-slate-800/40 border-slate-800 hover:border-slate-700'}`}>
-                <input type="checkbox" checked={done} onChange={e => toggleHabit(h.key, e.target.checked, h.levelIdx)} className="w-5 h-5 accent-blue-500" />
+              <label key={h.key} className={`flex items-start sm:items-center gap-3 p-3 rounded-lg cursor-pointer transition border ${done ? 'bg-blue-600/10 border-blue-600/40' : 'bg-slate-800/40 border-slate-800 hover:border-slate-700'}`}>
+                <input type="checkbox" checked={done} onChange={e => toggleHabit(h.key, e.target.checked, h.levelIdx)} className="w-6 h-6 sm:w-5 sm:h-5 accent-blue-500 mt-0.5 sm:mt-0 shrink-0" />
                 <div className="flex-1">
                   <div className={`text-sm ${done ? 'text-slate-100' : 'text-slate-300'}`}>{h.label}</div>
-                  <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-2">
+                  <div className="text-[11px] text-slate-500 mt-1 flex flex-wrap items-center gap-2">
                     <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 font-mono">ур.{h.levelIdx+1}/{h.totalLevels}</span>
                     {!h.maxed ? <span>→ с W{weekNum+1}: {h.nextLabel}</span> : <span className="text-emerald-400">✓ максимум</span>}
                   </div>
@@ -472,20 +490,20 @@ function DailyPage({ daily, setDaily, streak, weekNum, currentHabits, settings }
 
       <Card title={`История (${daily.length})`}>
         {sorted.length === 0 ? <Empty text="Записей пока нет" /> : (
-          <div className="space-y-2">
+          <div className="space-y-2 overflow-x-auto">
             {sorted.map(d => {
               const c = currentHabits.filter(h => isHabitDone(d, h.key)).length;
               const full = c === currentHabits.length;
               return (
-                <div key={d.date} className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-800/40 cursor-pointer" onClick={() => setDate(d.date)}>
-                  <div className={`w-2 h-2 rounded-full ${full ? 'bg-emerald-400' : c > 0 ? 'bg-yellow-500' : 'bg-slate-700'}`} />
-                  <div className="text-sm text-slate-300 w-24">{fmtDate(d.date)}</div>
-                  <div className="flex-1 flex gap-1">
+                <div key={d.date} className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-800/40 cursor-pointer min-w-[300px]" onClick={() => setDate(d.date)}>
+                  <div className={`w-2 h-2 rounded-full shrink-0 ${full ? 'bg-emerald-400' : c > 0 ? 'bg-yellow-500' : 'bg-slate-700'}`} />
+                  <div className="text-sm text-slate-300 w-24 shrink-0">{fmtDate(d.date)}</div>
+                  <div className="flex-1 flex gap-1 justify-center">
                     {currentHabits.map(h => (
                       <div key={h.key} className={`w-4 h-4 rounded text-[10px] flex items-center justify-center ${isHabitDone(d, h.key) ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-600'}`}>{isHabitDone(d, h.key) ? '✓' : '·'}</div>
                     ))}
                   </div>
-                  <div className="text-xs text-slate-500">{c}/{currentHabits.length}</div>
+                  <div className="text-xs text-slate-500 w-8 text-right shrink-0">{c}/{currentHabits.length}</div>
                 </div>
               );
             })}
@@ -526,12 +544,15 @@ function TasksPage({ tasks, setTasks }) {
           <Select label="Статус" value={form.status} onChange={e => setForm({...form, status: e.target.value})}>{STATUSES.map(s => <option key={s}>{s}</option>)}</Select>
           <div className="md:col-span-2"><Input label="Заметки" value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} placeholder="Детали" /></div>
         </div>
-        <div className="mt-3"><Btn onClick={add}>+ Добавить задачу</Btn></div>
+        <div className="mt-4"><Btn onClick={add} className="w-full md:w-auto py-2 md:py-1.5">+ Добавить задачу</Btn></div>
       </Card>
+      
       <div className="flex flex-wrap gap-2">
-        <Select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}><option>Все</option>{STATUSES.map(s => <option key={s}>{s}</option>)}</Select>
-        <Select value={filterDir} onChange={e => setFilterDir(e.target.value)}><option>Все</option>{DIRECTIONS.map(d => <option key={d}>{d}</option>)}</Select>
+        <div className="w-full sm:w-auto"><Select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}><option>Все</option>{STATUSES.map(s => <option key={s}>{s}</option>)}</Select></div>
+        <div className="w-full sm:w-auto"><Select value={filterDir} onChange={e => setFilterDir(e.target.value)}><option>Все</option>{DIRECTIONS.map(d => <option key={d}>{d}</option>)}</Select></div>
       </div>
+
+      {/* Канбан-доска: вертикально на мобильных, 3 колонки на десктопе */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {STATUSES.map(st => {
           const items = filtered.filter(t => t.status === st);
@@ -549,7 +570,7 @@ function TasksPage({ tasks, setTasks }) {
                     <div key={t.id} className="bg-slate-900 border border-slate-800 rounded-lg p-3 group">
                       <div className="flex items-start justify-between gap-2">
                         <div className="text-sm text-slate-100 flex-1">{t.task}</div>
-                        <button onClick={() => remove(t.id)} className="text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100">×</button>
+                        <button onClick={() => remove(t.id)} className="text-slate-600 hover:text-red-400 p-1 md:opacity-0 md:group-hover:opacity-100">✕</button>
                       </div>
                       <div className="flex flex-wrap items-center gap-1.5 mt-2">
                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400">{t.direction}</span>
@@ -557,9 +578,9 @@ function TasksPage({ tasks, setTasks }) {
                         {t.deadline && <span className={`text-[10px] ${overdue ? 'text-red-400' : 'text-slate-500'}`}>{overdue ? '⚠ ' : ''}{fmtDate(t.deadline)}</span>}
                       </div>
                       {t.notes && <div className="text-xs text-slate-500 mt-2 line-clamp-2">{t.notes}</div>}
-                      <div className="flex gap-1 mt-2">
+                      <div className="flex flex-wrap gap-1 mt-3">
                         {STATUSES.filter(s => s !== t.status).map(s => (
-                          <button key={s} onClick={() => setStatus(t.id, s)} className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 hover:text-slate-200">→ {s}</button>
+                          <button key={s} onClick={() => setStatus(t.id, s)} className="text-[11px] px-2 py-1 md:py-0.5 rounded bg-slate-800 text-slate-400 hover:text-slate-200">→ {s}</button>
                         ))}
                       </div>
                     </div>
@@ -590,31 +611,31 @@ function FinancePage({ finance, setFinance, settings, setSettings }) {
   const sorted = [...finance].sort((a,b) => b.month.localeCompare(a.month));
   return (
     <div className="space-y-6">
-      <div className="flex items-end justify-between">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div><h1 className="text-2xl font-bold">Финансы</h1><p className="text-sm text-slate-500 mt-1">Прибыль · поток · капитал</p></div>
-        <div className="flex items-center gap-3 bg-slate-900 border border-slate-800 rounded-xl px-4 py-2">
+        <div className="flex items-center justify-between md:justify-end gap-3 bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 w-full md:w-auto">
           <span className="text-xs text-slate-400">Цель года:</span>
           <input type="number" value={settings.annualProfitTarget} onChange={e => setSettings({...settings, annualProfitTarget: +e.target.value || 0})} className="w-32 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm text-slate-100" />
         </div>
       </div>
       <Card title="Добавить / обновить месяц">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
           <Input label="Месяц" type="month" value={form.month} onChange={e => setForm({...form, month: e.target.value})} />
-          <Input label="Прибыль: Туризм" type="number" value={form.tourism} onChange={e => setForm({...form, tourism: e.target.value})} />
-          <Input label="Прибыль: Металлоизделия" type="number" value={form.metal} onChange={e => setForm({...form, metal: e.target.value})} />
-          <Input label="Инвестпортфель" type="number" value={form.portfolio} onChange={e => setForm({...form, portfolio: e.target.value})} />
-          <Input label="Резерв" type="number" value={form.reserve} onChange={e => setForm({...form, reserve: e.target.value})} />
+          <Input label="Туризм (₽)" type="number" value={form.tourism} onChange={e => setForm({...form, tourism: e.target.value})} />
+          <Input label="Металлоизделия (₽)" type="number" value={form.metal} onChange={e => setForm({...form, metal: e.target.value})} />
+          <Input label="Инвестпортфель (₽)" type="number" value={form.portfolio} onChange={e => setForm({...form, portfolio: e.target.value})} />
+          <Input label="Резерв (₽)" type="number" value={form.reserve} onChange={e => setForm({...form, reserve: e.target.value})} />
         </div>
-        <div className="mt-3"><Btn onClick={add}>Сохранить</Btn></div>
+        <div className="mt-4"><Btn onClick={add} className="w-full md:w-auto py-2 md:py-1.5">Сохранить</Btn></div>
       </Card>
       <Card title="История">
         {sorted.length === 0 ? <Empty text="Нет записей" /> : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
+            <table className="w-full text-sm min-w-[600px]">
               <thead><tr className="text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-800">
                 <th className="text-left py-2">Месяц</th><th className="text-right">Туризм</th><th className="text-right">Металл</th>
-                <th className="text-right">Общая</th><th className="text-right">Поток 35%</th><th className="text-right">Портфель</th>
-                <th className="text-right">Резерв</th><th className="text-right">Капитал</th><th></th>
+                <th className="text-right">Общая</th><th className="text-right text-emerald-500">Поток 35%</th><th className="text-right">Портфель</th>
+                <th className="text-right">Резерв</th><th className="text-right text-blue-400">Капитал</th><th></th>
               </tr></thead>
               <tbody>
                 {sorted.map(f => {
@@ -622,7 +643,7 @@ function FinancePage({ finance, setFinance, settings, setSettings }) {
                   const net = (f.portfolio||0) + (f.reserve||0);
                   return (
                     <tr key={f.id} className="border-b border-slate-800/50 hover:bg-slate-800/30">
-                      <td className="py-2 text-slate-200">{fmtMonth(f.month)}</td>
+                      <td className="py-2 text-slate-200 whitespace-nowrap">{fmtMonth(f.month)}</td>
                       <td className="text-right text-slate-400">{fmtNum(f.tourism||0)}</td>
                       <td className="text-right text-slate-400">{fmtNum(f.metal||0)}</td>
                       <td className="text-right text-slate-200 font-medium">{fmtNum(total)}</td>
@@ -630,7 +651,7 @@ function FinancePage({ finance, setFinance, settings, setSettings }) {
                       <td className="text-right text-slate-400">{fmtNum(f.portfolio||0)}</td>
                       <td className="text-right text-slate-400">{fmtNum(f.reserve||0)}</td>
                       <td className="text-right text-blue-400 font-medium">{fmtNum(net)}</td>
-                      <td className="text-right"><button onClick={() => remove(f.id)} className="text-slate-600 hover:text-red-400">×</button></td>
+                      <td className="text-right"><button onClick={() => remove(f.id)} className="text-slate-600 hover:text-red-400 p-1">✕</button></td>
                     </tr>
                   );
                 })}
@@ -668,38 +689,44 @@ function HealthPage({ health, setHealth }) {
 
   return (
     <div className="space-y-6">
-      <div><h1 className="text-2xl font-bold">Здоровье</h1><p className="text-sm text-slate-500 mt-1">Цель: 90 кг · силовая · сон 7+ · шаги</p></div>
+      <div><h1 className="text-2xl font-bold">Здоровье</h1><p className="text-sm text-slate-500 mt-1">Цель: 90 кг · силовая · сон 7+</p></div>
+      
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card><div className="text-xs text-slate-500">Текущий вес</div><div className="text-2xl font-bold mt-1">{latest?.weight ? `${latest.weight} кг` : '—'}</div></Card>
-        <Card><div className="text-xs text-slate-500">Сон (30 дн)</div><div className="text-2xl font-bold mt-1">{avgSleep ? `${avgSleep.toFixed(1)} ч` : '—'}</div></Card>
-        <Card><div className="text-xs text-slate-500">Шаги (30 дн)</div><div className="text-2xl font-bold mt-1">{avgSteps ? fmtNum(Math.round(avgSteps)) : '—'}</div></Card>
-        <Card><div className="text-xs text-slate-500">Силовых (30 дн)</div><div className="text-2xl font-bold mt-1">{strengthCount}</div></Card>
+        <Card><div className="text-xs text-slate-500">Текущий вес</div><div className="text-xl md:text-2xl font-bold mt-1">{latest?.weight ? `${latest.weight} кг` : '—'}</div></Card>
+        <Card><div className="text-xs text-slate-500">Сон (30 дн)</div><div className="text-xl md:text-2xl font-bold mt-1">{avgSleep ? `${avgSleep.toFixed(1)} ч` : '—'}</div></Card>
+        <Card><div className="text-xs text-slate-500">Шаги (30 дн)</div><div className="text-xl md:text-2xl font-bold mt-1">{avgSteps ? fmtNum(Math.round(avgSteps)) : '—'}</div></Card>
+        <Card><div className="text-xs text-slate-500">Силовых (30 дн)</div><div className="text-xl md:text-2xl font-bold mt-1">{strengthCount}</div></Card>
       </div>
+      
       <Card title="Динамика веса"><LineChartSimple data={weightData} color="#10b981" height={240} yLabel="кг" /></Card>
+      
       <Card title="Новая запись">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
           <Input label="Дата" type="date" value={form.date} onChange={e => setForm({...form, date: e.target.value})} />
           <Input label="Вес (кг)" type="number" step="0.1" value={form.weight} onChange={e => setForm({...form, weight: e.target.value})} />
           <Input label="Шаги" type="number" value={form.steps} onChange={e => setForm({...form, steps: e.target.value})} />
           <Input label="Сон (ч)" type="number" step="0.5" value={form.sleep} onChange={e => setForm({...form, sleep: e.target.value})} />
-          <Field label="Силовая"><label className="flex items-center gap-2 h-[38px]">
-            <input type="checkbox" checked={form.strength} onChange={e => setForm({...form, strength: e.target.checked})} className="w-5 h-5 accent-emerald-500" />
-            <span className="text-sm text-slate-300">была</span>
-          </label></Field>
+          <Field label="Силовая">
+            <label className="flex items-center gap-2 h-[42px] bg-slate-800 border border-slate-700 rounded-lg px-3">
+              <input type="checkbox" checked={form.strength} onChange={e => setForm({...form, strength: e.target.checked})} className="w-5 h-5 accent-emerald-500" />
+              <span className="text-sm text-slate-300">была</span>
+            </label>
+          </Field>
         </div>
-        <div className="mt-3"><Btn onClick={add}>Сохранить</Btn></div>
+        <div className="mt-4"><Btn onClick={add} className="w-full md:w-auto py-2 md:py-1.5">Сохранить</Btn></div>
       </Card>
+      
       <Card title={`История (${health.length})`}>
         {sortedDesc.length === 0 ? <Empty text="Нет записей" /> : (
           <div className="space-y-1">
             {sortedDesc.slice(0, 30).map(h => (
-              <div key={h.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-800/30 text-sm group">
-                <div className="w-24 text-slate-300">{fmtDate(h.date)}</div>
-                <div className="w-20 text-slate-200">{h.weight || '—'} кг</div>
-                <div className="w-20 text-slate-400">{h.steps ? fmtNum(h.steps) : '—'}</div>
-                <div className="w-16 text-slate-400">{h.sleep || '—'} ч</div>
-                <div className="w-16 text-xs">{h.strength ? '🏋️' : ''}</div>
-                <button onClick={() => remove(h.id)} className="ml-auto text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100">×</button>
+              <div key={h.id} className="flex flex-wrap items-center gap-3 p-2 rounded-lg hover:bg-slate-800/30 text-sm group border-b border-slate-800/50 md:border-none">
+                <div className="w-20 text-slate-300 font-medium">{fmtDate(h.date)}</div>
+                <div className="w-16 text-slate-200">{h.weight || '—'} кг</div>
+                <div className="w-20 text-slate-400 text-xs">👣 {h.steps ? fmtNum(h.steps) : '—'}</div>
+                <div className="w-16 text-slate-400 text-xs">💤 {h.sleep || '—'} ч</div>
+                <div className="w-16 text-xs text-emerald-400">{h.strength ? '🏋️ силовая' : ''}</div>
+                <button onClick={() => remove(h.id)} className="ml-auto text-slate-600 hover:text-red-400 p-1 md:opacity-0 md:group-hover:opacity-100">✕</button>
               </div>
             ))}
           </div>
@@ -728,14 +755,14 @@ function StrategyPage({ weekNum }) {
     <div className="space-y-6 max-w-4xl">
       <div><h1 className="text-2xl font-bold">Стратегия</h1><p className="text-sm text-slate-500 mt-1">9 лет · 4 главные цели · сейчас неделя {weekNum}</p></div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {goals.map(g => (<Card key={g.title}><div className={`text-2xl ${g.color}`}>{g.icon}</div><div className="text-xs text-slate-500 mt-2">{g.title}</div><div className="text-lg font-bold mt-0.5">{g.value}</div></Card>))}
+        {goals.map(g => (<Card key={g.title}><div className={`text-2xl ${g.color}`}>{g.icon}</div><div className="text-xs text-slate-500 mt-2">{g.title}</div><div className="text-base md:text-lg font-bold mt-0.5">{g.value}</div></Card>))}
       </div>
       <Card title="Дорожная карта">
         <div className="space-y-4">
           {roadmap.map((r, i) => (
-            <div key={r.year} className="flex gap-4">
-              <div className="w-24 shrink-0 text-right"><div className="text-xs text-blue-400 font-semibold">{r.year}</div><div className="text-[10px] text-slate-600">{r.age} лет</div></div>
-              <div className="flex-1 relative pb-4 border-l-2 border-slate-800 pl-4">
+            <div key={r.year} className="flex gap-3 md:gap-4">
+              <div className="w-20 md:w-24 shrink-0 text-right"><div className="text-xs text-blue-400 font-semibold">{r.year}</div><div className="text-[10px] text-slate-600">{r.age} лет</div></div>
+              <div className="flex-1 relative pb-4 border-l-2 border-slate-800 pl-3 md:pl-4">
                 <div className="absolute -left-[7px] top-0 w-3 h-3 rounded-full bg-blue-500" />
                 <div className="text-sm font-semibold text-slate-100">{r.title}</div>
                 <div className="text-sm text-slate-400 mt-1">{r.body}</div>
@@ -783,11 +810,11 @@ function AgentsPage({ agentNotes, setAgentNotes, daily, health, finance, tasks, 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card title="Стратег" action={<span className="text-xs text-slate-500">аналитик</span>}>
           <p className="text-sm text-slate-400 mb-4 leading-relaxed">Еженедельно анализирует Финансы, Здоровье и План. Выявляет паттерны, отклонения и даёт 1–3 корректировки.</p>
-          <Btn onClick={runStrategist} disabled={busy === 'strategist'}>{busy === 'strategist' ? 'Анализирую…' : '▶ Запустить анализ'}</Btn>
+          <Btn onClick={runStrategist} disabled={busy === 'strategist'} className="w-full md:w-auto">{busy === 'strategist' ? 'Анализирую…' : '▶ Запустить анализ'}</Btn>
         </Card>
         <Card title="Наставник" action={<span className="text-xs text-slate-500">коуч</span>}>
           <p className="text-sm text-slate-400 mb-4 leading-relaxed">Следит за привычками текущей недели. Напоминает про «правило двух пропусков» и минимальную программу.</p>
-          <Btn onClick={runMentor} disabled={busy === 'mentor'} variant="ghost">{busy === 'mentor' ? 'Проверяю…' : '▶ Проверить дисциплину'}</Btn>
+          <Btn onClick={runMentor} disabled={busy === 'mentor'} variant="ghost" className="w-full md:w-auto">{busy === 'mentor' ? 'Проверяю…' : '▶ Проверить дисциплину'}</Btn>
         </Card>
       </div>
       <Card title={`Заметки агентов (${agentNotes.length})`}>
@@ -800,9 +827,9 @@ function AgentsPage({ agentNotes, setAgentNotes, daily, health, finance, tasks, 
                     <span className={`text-xs font-semibold ${n.agent === 'Стратег' ? 'text-blue-400' : 'text-emerald-400'}`}>{n.agent}</span>
                     <span className="text-[10px] text-slate-500">{new Date(n.date).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' })}</span>
                   </div>
-                  <button onClick={() => remove(n.id)} className="text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100">×</button>
+                  <button onClick={() => remove(n.id)} className="text-slate-600 hover:text-red-400 p-1 md:opacity-0 md:group-hover:opacity-100">✕</button>
                 </div>
-                <pre className="whitespace-pre-wrap text-sm text-slate-300 font-sans leading-relaxed">{n.content}</pre>
+                <pre className="whitespace-pre-wrap text-sm text-slate-300 font-sans leading-relaxed break-words">{n.content}</pre>
               </div>
             ))}
           </div>
@@ -823,7 +850,7 @@ function AutomationsPage({ settings, setSettings, showToast, weekNum }) {
   };
   const test = () => {
     showToast('🔔 Тест: список текущей недели привычек.');
-    if (perm === 'granted') new Notification('Штаб 100 млн — тест', { body: 'Утреннее напоминание о 6 привычках.' });
+    if (perm === 'granted') new Notification('Штаб 100 млн — тест', { body: 'Утреннее напоминание о привычках.' });
   };
   const toggle = (k) => setSettings({ ...settings, automations: { ...settings.automations, [k]: !settings.automations[k] } });
   const items = [
@@ -836,9 +863,9 @@ function AutomationsPage({ settings, setSettings, showToast, weekNum }) {
       <div><h1 className="text-2xl font-bold">Автоматизации</h1><p className="text-sm text-slate-500 mt-1">Напоминания и отчёты</p></div>
       {perm !== 'granted' && (
         <Card className="border-yellow-600/40 bg-yellow-600/5">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
             <div><div className="text-sm font-medium text-yellow-400">Уведомления не разрешены</div><div className="text-xs text-slate-400 mt-1">Разреши в браузере, чтобы получать напоминания.</div></div>
-            <Btn onClick={requestPerm} variant="ghost">Разрешить</Btn>
+            <Btn onClick={requestPerm} variant="ghost" className="w-full md:w-auto">Разрешить</Btn>
           </div>
         </Card>
       )}
@@ -847,16 +874,16 @@ function AutomationsPage({ settings, setSettings, showToast, weekNum }) {
           const on = settings.automations?.[it.key];
           return (
             <Card key={it.key}>
-              <div className="flex items-center gap-4">
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg ${on ? 'bg-blue-600/20 text-blue-400' : 'bg-slate-800 text-slate-600'}`}>
+              <div className="flex items-center gap-3 md:gap-4">
+                <div className={`w-10 h-10 shrink-0 rounded-lg flex items-center justify-center text-lg ${on ? 'bg-blue-600/20 text-blue-400' : 'bg-slate-800 text-slate-600'}`}>
                   {it.key === 'morning' ? '☀' : it.key === 'evening' ? '☾' : '★'}
                 </div>
                 <div className="flex-1">
                   <div className="text-sm font-semibold text-slate-100">{it.title}</div>
                   <div className="text-xs text-slate-500">{it.time}</div>
-                  <div className="text-xs text-slate-500 mt-0.5">{it.body}</div>
+                  <div className="text-[11px] md:text-xs text-slate-500 mt-0.5">{it.body}</div>
                 </div>
-                <button onClick={() => toggle(it.key)} className={`w-12 h-6 rounded-full transition relative ${on ? 'bg-blue-600' : 'bg-slate-700'}`}>
+                <button onClick={() => toggle(it.key)} className={`w-12 h-6 shrink-0 rounded-full transition relative ${on ? 'bg-blue-600' : 'bg-slate-700'}`}>
                   <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition ${on ? 'left-6' : 'left-0.5'}`} />
                 </button>
               </div>
@@ -864,7 +891,7 @@ function AutomationsPage({ settings, setSettings, showToast, weekNum }) {
           );
         })}
       </div>
-      <Btn onClick={test} variant="ghost">🔔 Тест уведомления</Btn>
+      <Btn onClick={test} variant="ghost" className="w-full md:w-auto">🔔 Тест уведомления</Btn>
 
       <Card title="Прогрессия привычек">
         <div className="space-y-3">
@@ -876,7 +903,7 @@ function AutomationsPage({ settings, setSettings, showToast, weekNum }) {
             </div>
           </div>
           <Field label="Дата старта проекта">
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <input type="date" value={settings.startDate || todayISO()} onChange={e => setSettings({ ...settings, startDate: e.target.value })} className={inputCls} />
               <Btn variant="ghost" onClick={() => setSettings({ ...settings, startDate: todayISO() })}>Сброс на сегодня</Btn>
             </div>
@@ -902,6 +929,8 @@ function AutomationsPage({ settings, setSettings, showToast, weekNum }) {
 // ============ APP ROOT ============
 function App() {
   const [page, setPage] = useState('dashboard');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  
   const [daily, setDaily] = useStoredState('shtab_daily', []);
   const [tasks, setTasks] = useStoredState('shtab_tasks', []);
   const [finance, setFinance] = useStoredState('shtab_finance', []);
@@ -915,7 +944,6 @@ function App() {
   const [toast, setToast] = useState(null);
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 6000); };
 
-  // migrate old settings without startDate
   useEffect(() => {
     if (!settings.startDate) setSettings(s => ({ ...s, startDate: todayISO() }));
   }, [settings.startDate]);
@@ -925,7 +953,7 @@ function App() {
   const currentHabits = useMemo(() => getCurrentHabits(weekNum), [weekNum]);
   const streak = useMemo(() => computeStreak(daily), [daily]);
 
-  // Automations loop
+  // Автоматизации
   useEffect(() => {
     const fired = load('shtab_fired', {});
     const check = () => {
@@ -961,19 +989,32 @@ function App() {
   }, [settings, daily, health, finance, tasks, currentHabits, setAgentNotes]);
 
   return (
-    <div className="flex min-h-screen text-slate-100">
-      <Sidebar page={page} setPage={setPage} streak={streak} weekNum={weekNum} />
-      <main className="flex-1 p-6 md:p-8 overflow-x-hidden">
-        {page === 'dashboard' && <Dashboard {...{ daily, health, finance, tasks, agentNotes, settings, streak, weekNum, currentHabits, setPage }} />}
-        {page === 'daily' && <DailyPage {...{ daily, setDaily, streak, weekNum, currentHabits, settings }} />}
-        {page === 'tasks' && <TasksPage tasks={tasks} setTasks={setTasks} />}
-        {page === 'finance' && <FinancePage {...{ finance, setFinance, settings, setSettings }} />}
-        {page === 'health' && <HealthPage health={health} setHealth={setHealth} />}
-        {page === 'strategy' && <StrategyPage weekNum={weekNum} />}
-        {page === 'agents' && <AgentsPage {...{ agentNotes, setAgentNotes, daily, health, finance, tasks, currentHabits }} />}
-        {page === 'automations' && <AutomationsPage settings={settings} setSettings={setSettings} showToast={showToast} weekNum={weekNum} />}
-      </main>
-      {toast && <div className="fixed bottom-6 right-6 max-w-md bg-blue-600 text-white px-5 py-3 rounded-xl shadow-2xl text-sm z-50">{toast}</div>}
+    <div className="flex h-[100dvh] bg-slate-950 text-slate-100 overflow-hidden font-sans">
+      <Sidebar page={page} setPage={setPage} streak={streak} weekNum={weekNum} isOpen={isMobileMenuOpen} setIsOpen={setIsMobileMenuOpen} />
+      
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+        {/* Верхняя панель для мобильных */}
+        <header className="md:hidden flex items-center justify-between bg-slate-900 border-b border-slate-800 p-4 shrink-0">
+          <button onClick={() => setIsMobileMenuOpen(true)} className="text-slate-300 p-1">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+          </button>
+          <div className="font-bold tracking-tight text-lg">Штаб 100 млн</div>
+          <div className="text-orange-400 font-bold text-sm bg-orange-400/10 px-2 py-1 rounded-md">🔥 {streak}</div>
+        </header>
+
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8">
+          {page === 'dashboard' && <Dashboard {...{ daily, health, finance, tasks, agentNotes, settings, streak, weekNum, currentHabits, setPage }} />}
+          {page === 'daily' && <DailyPage {...{ daily, setDaily, streak, weekNum, currentHabits, settings }} />}
+          {page === 'tasks' && <TasksPage tasks={tasks} setTasks={setTasks} />}
+          {page === 'finance' && <FinancePage {...{ finance, setFinance, settings, setSettings }} />}
+          {page === 'health' && <HealthPage health={health} setHealth={setHealth} />}
+          {page === 'strategy' && <StrategyPage weekNum={weekNum} />}
+          {page === 'agents' && <AgentsPage {...{ agentNotes, setAgentNotes, daily, health, finance, tasks, currentHabits }} />}
+          {page === 'automations' && <AutomationsPage settings={settings} setSettings={setSettings} showToast={showToast} weekNum={weekNum} />}
+        </main>
+      </div>
+
+      {toast && <div className="fixed bottom-4 right-4 left-4 md:left-auto md:bottom-6 md:right-6 md:max-w-md bg-blue-600 text-white px-5 py-3 rounded-xl shadow-2xl text-sm z-[100] text-center md:text-left">{toast}</div>}
     </div>
   );
 }
